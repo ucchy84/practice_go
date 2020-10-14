@@ -7,8 +7,8 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"time"
-	"practice_go/config"
+	"strconv"
+	// "practice_go/config"
 	"practice_go/models"
 )
 
@@ -23,9 +23,6 @@ type DeleteResponse struct {
 	ID string `json:"id"`
 }
 
-//ポインタ型でitemsを定義．今回はグローバル変数[配列]がDBの役割をする
-var items []*ItemParams
-
 func rootPage(w http.ResponseWriter, r *http.Request){
 	fmt.Fprintf(w, "Welcome to the Go Api Server")
 	fmt.Println("Root endpoint is hooked!")
@@ -36,7 +33,7 @@ func fetchAllItems(w http.ResponseWriter, r *http.Request){
 	// modelの呼び出し
 	models.GetAllItems(&items)
 	responseBody, err := json.Marshal(items)
-	if err := nil {
+	if err != nil {
 		log.Fatal(err)
 	}
 
@@ -47,15 +44,18 @@ func fetchAllItems(w http.ResponseWriter, r *http.Request){
 func fetchSingleItem(w http.ResponseWriter, r *http.Request){
 	// w.Header().Set("Content-Type", "application/json")
 	vars := mux.Vars(r)
-	key := vars["id"]
+	id := vars["id"]
 
 	var item models.Item
 	// modelの呼び出し
 	models.GetSingleItem(&item, id)
 	responseBody, err := json.Marshal(item)
 	if err != nil {
-		log.Datal(err)
+		log.Fatal(err)
 	}
+
+	w.Header().Set("Content-Type","application/json")
+	w.Write(responseBody)
 }
 
 func createItem(w http.ResponseWriter, r *http.Request) {
@@ -128,5 +128,5 @@ func StartWebServer() error {
 	router.HandleFunc("/item/{id}", deleteItem).Methods("DELETE")
 	router.HandleFunc("/item/{id}", updateItem).Methods("PUT")
 
-	return http.ListenAndServe(fmt.Sprintf(":%d", config.Config.ServerPort), router)
+	return http.ListenAndServe(fmt.Sprintf(":%d", 8080), router)
 }

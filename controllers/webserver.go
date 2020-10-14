@@ -8,15 +8,19 @@ import (
 	"log"
 	"net/http"
 	"time"
+	"practice_go/config"
+	"practice_go/models"
 )
 
-// ItemParams はjson型で取得
-type ItemParams struct {
+// type ItemParams struct {
+// 	ID string `json:"id"`
+// 	ItemName string `json:"item_name,omitempty"`
+// 	Price int `json:"price,omitempty"`
+// 	CreatedAt time.Time `json:"created_at"`
+// 	UpdatedAt time.Time `json:"updated_at"`
+// }
+type DeleteResponse struct {
 	ID string `json:"id"`
-	ItemName string `json:"item_name,omitempty"`
-	Price int `json:"price,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
 }
 
 //ポインタ型でitemsを定義．今回はグローバル変数[配列]がDBの役割をする
@@ -28,65 +32,86 @@ func rootPage(w http.ResponseWriter, r *http.Request){
 }
 
 func fetchAllItems(w http.ResponseWriter, r *http.Request){
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(items)
+	var items []models.Item
+	// modelの呼び出し
+	models.GetAllItems(&items)
+	responseBody, err := json.Marshal(items)
+	if err := nil {
+		log.Fatal(err)
+	}
+
+	w.Header().Set("Content-Type","application/json")
+	w.Write(responseBody)
 }
 
 func fetchSingleItem(w http.ResponseWriter, r *http.Request){
-	w.Header().Set("Content-Type", "application/json")
+	// w.Header().Set("Content-Type", "application/json")
 	vars := mux.Vars(r)
 	key := vars["id"]
 
-	for _, item := range items {
-		if item.ID == key {
-			json.NewEncoder(w).Encode(item)
-		}
+	var item models.Item
+	// modelの呼び出し
+	models.GetSingleItem(&item, id)
+	responseBody, err := json.Marshal(item)
+	if err != nil {
+		log.Datal(err)
 	}
 }
 
 func createItem(w http.ResponseWriter, r *http.Request) {
-    reqBody, _ := ioutil.ReadAll(r.Body)
-    var item ItemParams
-    if err := json.Unmarshal(reqBody, &item); err != nil {
-        log.Fatal(err)
-    }
+	reqBody, _ := ioutil.ReadAll(r.Body)
+	
+	var item models.Item
+	if err := json.Unmarshal(reqBody, &item); err != nil {
+		log.Fatal(err)
+	}
+	// modelの呼び出し
+	models.InsertItem(&item)
+	responseBody, err := json.Marshal(item)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-    items = append(items, &item)
-    json.NewEncoder(w).Encode(item)
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(responseBody)
 }
 
 func deleteItem(w http.ResponseWriter, r *http.Request) {
     vars := mux.Vars(r)
     id := vars["id"]
+	
+	// modelの呼び出し
+	models.DeleteItem(id)
+	responseBody, err := json.Marshal(DeleteResponse{ID: id})
+	if err != nil {
+		log.Fatal(err)
+	}
 
-    for index, item := range items {
-        if item.ID == id {
-            items = append(items[:index], items[index+1:]...)
-        }
-    }
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(responseBody)
 }
 
 func updateItem(w http.ResponseWriter, r *http.Request) {
     vars := mux.Vars(r)
     id := vars["id"]
+	reqBody, _ := ioutil.ReadAll(r.Body)
 
-    reqBody, _ := ioutil.ReadAll(r.Body)
-    var updateItem ItemParams
-    if err := json.Unmarshal(reqBody, &updateItem); err != nil {
-        log.Fatal(err)
-    }
+	var updateItem models.Item
+	if err := json.Unmarshal(reqBody, &updateItem); err != nil {
+		log.Fatal(err)
+	}
 
-    for index, item := range items {
-        if item.ID == id {
-            items[index] = &ItemParams{
-                ID:           item.ID,
-                ItemName:     updateItem.ItemName,
-                Price:        updateItem.Price,
-                CreatedAt:    item.CreatedAt,
-                UpdatedAt:    updateItem.UpdatedAt,
-            }
-        }
-    }
+	// modelの呼び出し
+	models.UpdateItem(&updateItem, id)
+	convertUintId, _ := strconv.ParseUint(id, 10, 64)
+	updateItem.Model.ID = uint(convertUintId)
+	responseBody, err := json.Marshal(updateItem)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(responseBody)
 }
 
 // StartWebServer サーバーの立ち上げ
@@ -103,32 +128,5 @@ func StartWebServer() error {
 	router.HandleFunc("/item/{id}", deleteItem).Methods("DELETE")
 	router.HandleFunc("/item/{id}", updateItem).Methods("PUT")
 
-	return http.ListenAndServe(fmt.Sprintf(":%d", 8080), router)
-}
-
-//モックデータを初期値として読み込む
-func init() {
-	items = []*ItemParams{
-		&ItemParams{
-			ID: "1",
-			ItemName: "item_1",
-			Price: 2500,
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
-		},
-		&ItemParams{
-			ID: "2",
-			ItemName: "item_2",
-			Price: 3000,
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
-		},
-		&ItemParams{
-			ID: "3",
-			ItemName: "item_3",
-			Price: 3400,
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
-		},
-	}
+	return http.ListenAndServe(fmt.Sprintf(":%d", config.Config.ServerPort), router)
 }
